@@ -7,9 +7,9 @@ const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = 'm@y@nk$6715';
 
-// Creating User: POST "/api/auth/createuser"
+// ROUTE 1: Creating User: POST "/api/auth/createuser"
 //              Params: { name: String, email: String(unique), password: String}
-//              Success(200) Status: return user(obj) 
+//              Success(200) Status: return authtoken(jwt)  
 //              Status(400): msg => "User with this email already exists"
 //              Status(500): msg => "Some error occured" (for internal server errors)
 router.post('/createuser', [
@@ -51,8 +51,49 @@ router.post('/createuser', [
 
     } catch (error) {
         console.error(error.message);
-        res.status(500).send("Some Error Occured");
+        res.status(500).send("Internal server error");
     }
 });
+
+
+// ROUTE 2: User Login: POST "/api/auth/login"
+//              Params: { email: String, password: String}
+//              Success(200) Status: return authtoken(jwt) 
+//              Status(400): msg => according to errors
+//              Status(500): msg => "Please enter correct credentials" (for internal server errors)
+router.post('/login', [
+    body('email', 'Enter a valid email').isEmail(),
+    body('password', 'Password cannot be empty').exists()
+], async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.json({ errors: errors.array() }).status(400);
+    }
+
+    let {email, password} = req.body;
+    try {
+        let user = await User.findOne({email});
+        if(!user) {
+            return res.json({error: "Please enter correct credentials"}).status(400);
+        }
+
+        const passwordCompare = await bcrypt.compare(password, user.password);
+        if(!passwordCompare) {
+            return res.json({error: "Please enter correct credentials"}).status(400);
+        }
+
+        const data = {
+            user: {
+                id: user.id
+            }
+        }
+        const authtoken = jwt.sign(data, JWT_SECRET);
+
+        res.json({authtoken});
+    } catch (error) {
+        console.error(error.message);
+        res.status(500).send("Internal server error");
+    }
+})
 
 module.exports = router;
